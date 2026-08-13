@@ -63,8 +63,12 @@ private slots:
         m_connectBtn->setText(m_client->connected() ? "Disconnect" : "Connect");
     }
 
-    void onStatusChanged() {
+     void onStatusChanged() {
         m_statusLabel->setText("Status: " + m_client->status());
+    }
+
+    void onPacketRateChanged() {
+        m_packetRateLabel->setText(QString("Packets: %1 pkt/s").arg(m_client->packetRate(), 0, 'f', 0));
     }
 
     void onFrameReceived() {
@@ -192,7 +196,9 @@ private:
         // Status bar
         QHBoxLayout *statusLayout = new QHBoxLayout();
         m_fpsLabel = new QLabel("FPS: 0.0");
+        m_packetRateLabel = new QLabel("Packets: 0 pkt/s");
         statusLayout->addWidget(m_fpsLabel);
+        statusLayout->addWidget(m_packetRateLabel);
         statusLayout->addStretch();
         statusLayout->addWidget(new QLabel("Press F11 for fullscreen - فشار دهید F11 برای تمام صفحه"));
         
@@ -210,6 +216,7 @@ private:
         connect(m_client, &RemoteClient::statusChanged, this, &CyrusDeskWindow::onStatusChanged);
         connect(m_client, &RemoteClient::frameReceived, this, &CyrusDeskWindow::onFrameReceived);
         connect(m_client, &RemoteClient::cursorUpdated, m_imageLabel, &RemoteScreenLabel::updateRemoteCursor);
+        connect(m_client, &RemoteClient::packetRateChanged, this, &CyrusDeskWindow::onPacketRateChanged);
         
         // Auto-save settings when they change
         connect(m_hostEdit, &QLineEdit::textChanged, this, &CyrusDeskWindow::saveSettings);
@@ -223,6 +230,7 @@ private:
     QLabel *m_statusLabel;
     RemoteScreenLabel *m_imageLabel;
     QLabel *m_fpsLabel;
+    QLabel *m_packetRateLabel;
     int m_frameCount = 0;
     
     QString m_instanceId;

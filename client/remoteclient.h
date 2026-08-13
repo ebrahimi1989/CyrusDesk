@@ -33,6 +33,7 @@ class RemoteClient : public QObject
     Q_OBJECT
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
+    Q_PROPERTY(double packetRate READ packetRate NOTIFY packetRateChanged)
 
 public:
     explicit RemoteClient(QObject *parent = nullptr);
@@ -45,6 +46,7 @@ public:
     
     bool connected() const { return m_connected; }
     QString status() const { return m_status; }
+    double packetRate() const { return m_packetRate; }
     
     ImageProvider* imageProvider() { return m_imageProvider; }
 
@@ -53,6 +55,7 @@ signals:
     void statusChanged();
     void frameReceived();
     void cursorUpdated(int x, int y, bool visible);
+    void packetRateChanged();
 
 private slots:
     void onConnected();
@@ -94,6 +97,13 @@ private:
     // Instance-specific debug variables (previously static)
     int m_frameCounter;
     QElapsedTimer m_debugTimer;
+
+    // Packet rate tracking for UI display
+    int m_packetCounter;
+    double m_packetRate;
+    QElapsedTimer m_packetTimer;
+    qint64 m_lastPacketLog;
+    double m_avgLatency;
 
 private slots:
     void flushPendingMouseEvents();

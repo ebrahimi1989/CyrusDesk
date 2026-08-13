@@ -51,6 +51,10 @@ RemoteClient::RemoteClient(QObject *parent)
     , m_mouseBatchTimer(new QTimer(this))
     , m_hasPendingMouseMove(false)
     , m_frameCounter(0)
+    , m_packetCounter(0)
+    , m_packetRate(0.0)
+    , m_lastPacketLog(0)
+    , m_avgLatency(0.0)
 {
     connect(m_socket, &QTcpSocket::connected, this, &RemoteClient::onConnected);
     connect(m_socket, &QTcpSocket::disconnected, this, &RemoteClient::onDisconnected);
@@ -175,6 +179,14 @@ void RemoteClient::onConnected()
     setConnected(true);
     setStatus("Connected");
     m_pingTimer->start();
+
+    // Reset packet rate tracking for new connection
+    m_packetCounter = 0;
+    m_packetRate = 0.0;
+    m_avgLatency = 0.0;
+    m_lastPacketLog = 0;
+    m_packetTimer.invalidate();
+    emit packetRateChanged();
 }
 
 void RemoteClient::onDisconnected()
@@ -184,6 +196,12 @@ void RemoteClient::onDisconnected()
     setConnected(false);
     setStatus("Disconnected");
     m_pingTimer->stop();
+
+    // Reset packet rate tracking
+    m_packetCounter = 0;
+    m_packetRate = 0.0;
+    m_avgLatency = 0.0;
+    emit packetRateChanged();
 
     // Reset decoder state
     if (m_decoderInitialized) {
@@ -304,27 +322,26 @@ void RemoteClient::handleVideoData(const QByteArray& data)
     QByteArray actualData;
     double latencyMs = LatencyMonitor::getLatencyMs(data, actualData);
 
-    // Log latency every second
-    static int latencyCounter = 0;
-    static double avgLatency = 0.0;
-    static qint64 lastLatencyLog = 0;
-    static QElapsedTimer latencyTimer;
-
-    if (!latencyTimer.isValid()) {
-        latencyTimer.start();
-    }
+    // Track packet rate and latency for UI display
+    m_packetCounter++;
 
     if (latencyMs > 0) {
-        avgLatency = (avgLatency * 0.9) + (latencyMs * 0.1);
-        latencyCounter++;
+        m_avgLatency = (m_avgLatency * 0.9) + (latencyMs * 0.1);
+    }
 
-        qint64 elapsed = latencyTimer.elapsed();
-        if (elapsed - lastLatencyLog >= 1000) {
-            qDebug() << "Network latency:" << qRound(avgLatency * 10) / 10.0 << "ms"
-                     << "| Packets/sec:" << latencyCounter;
-            latencyCounter = 0;
-            lastLatencyLog = elapsed;
-        }
+    if (!m_packetTimer.isValid()) {
+        m_packetTimer.start();
+    }
+
+    qint64 elapsed = m_packetTimer.elapsed();
+    if (elapsed - m_lastPacketLog >= 1000) {
+        m_packetRate = m_packetCounter / (elapsed / 1000.0);
+        m_packetCounter = 0;
+        m_lastPacketLog = elapsed;
+        emit packetRateChanged();
+
+        qDebug() << "Network latency:" << qRound(m_avgLatency * 10) / 10.0 << "ms"
+                 << "| Packet rate:" << qRound(m_packetRate) << "pkt/s";
     }
 
     // Send to hardware decoder (non-blocking)
