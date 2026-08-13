@@ -1,0 +1,16 @@
+# Qt Creator / qmake build artifacts
+*.pro.user
+.qmake.stash
+Makefile
+Makefile.*
+*.o
+*.moc
+*.obj
+
+# Build directories
+build/
+build-*/
+
+# Compiled binaries
+cyrusdesk-server
+cyrusdesk-client

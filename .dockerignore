@@ -1,0 +1,15 @@
+.git
+.gitignore
+build
+build-*/
+*.pro.user
+.qmake.stash
+Makefile
+Makefile.*
+*.o
+*.moc
+*.obj
+cyrusdesk-server
+cyrusdesk-client
+Dockerfile
+.dockerignore
