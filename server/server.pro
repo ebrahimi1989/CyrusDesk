@@ -40,7 +40,8 @@ win32 {
     # Add SIMD support for Windows
     QMAKE_CXXFLAGS += /arch:AVX2
 
-    # FFmpeg for Windows (adjust paths as needed)
-    INCLUDEPATH += C:/ffmpeg/include
-    LIBS += -LC:/ffmpeg/lib -lavcodec -lavformat -lavutil -lswscale -lavfilter
+    # FFmpeg for Windows - override the path with: qmake FFMPEG_DIR=C:/path/to/ffmpeg
+    isEmpty(FFMPEG_DIR):FFMPEG_DIR = C:/ffmpeg
+    INCLUDEPATH += $$FFMPEG_DIR/include
+    LIBS += -L$$FFMPEG_DIR/lib -L$$FFMPEG_DIR/lib/x64 -lavcodec -lavutil -lswscale
 }

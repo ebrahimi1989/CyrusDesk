@@ -90,6 +90,29 @@ build it locally (see above) and point it at the host.
 A GitHub Actions workflow (`.github/workflows/build.yml`) builds both the server
 and the client with Qt 5.14 and also verifies that the Docker image builds.
 
+## Releases
+
+Pushing a version tag builds and publishes binaries as a GitHub Release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The `.github/workflows/release.yml` workflow then produces:
+
+- `CyrusDesk-<version>-linux-x64.tar.gz` — Linux server + client binaries
+- `CyrusDesk-<version>-windows-x64.zip` — Windows server + client with the
+  Qt and FFmpeg runtime DLLs bundled (runs without any extra installation)
+
+Notes:
+
+- Windows builds use the FFmpeg shared build from
+  [gyan.dev](https://www.gyan.dev/ffmpeg/builds/). The FFmpeg path is
+  overridable with `qmake FFMPEG_DIR=<path>`.
+- The Linux client binary still expects Qt to be installed on the target
+  machine (or run it from inside the Docker image).
+
 ## Protocol
 
 Messages are framed as `type (1 byte) | size (4 bytes, big-endian) | payload`.

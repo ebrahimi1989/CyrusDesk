@@ -1,0 +1,135 @@
+name: release
+
+# Creates a GitHub Release with binaries when a tag like v1.0.0 is pushed:
+#   git tag v1.0.0 && git push origin v1.0.0
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.14.2'
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavutil-dev libswscale-dev libx11-dev libxtst-dev pkg-config
+
+      - name: Build server
+        run: |
+          cd server
+          qmake server.pro
+          make -j$(nproc)
+
+      - name: Build client
+        run: |
+          cd client
+          qmake client.pro
+          make -j$(nproc)
+
+      - name: Package
+        run: |
+          mkdir -p dist/CyrusDesk-${{ github.ref_name }}-linux-x64
+          cp server/cyrusdesk-server dist/CyrusDesk-${{ github.ref_name }}-linux-x64/
+          cp client/cyrusdesk-client dist/CyrusDesk-${{ github.ref_name }}-linux-x64/
+          cp README.md dist/CyrusDesk-${{ github.ref_name }}-linux-x64/
+          tar -czf CyrusDesk-${{ github.ref_name }}-linux-x64.tar.gz -C dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: CyrusDesk-*-linux-x64.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.14.2'
+          arch: win64_msvc2019_64
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Download and extract FFmpeg (shared, MSVC import libs)
+        shell: pwsh
+        run: |
+          $ffmpegRoot = "$env:RUNNER_TEMP\ffmpeg"
+          Invoke-WebRequest -Uri https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z -OutFile "$env:RUNNER_TEMP\ffmpeg.7z"
+          7z x "$env:RUNNER_TEMP\ffmpeg.7z" "-o$ffmpegRoot" -y | Out-Null
+          $inner = Get-ChildItem $ffmpegRoot -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force C:/ffmpeg | Out-Null
+          Copy-Item -Recurse -Force "$($inner.FullName)\*" C:/ffmpeg/
+
+      - name: Build server
+        shell: cmd
+        run: |
+          cd server
+          qmake server.pro FFMPEG_DIR=C:/ffmpeg
+          nmake
+
+      - name: Build client
+        shell: cmd
+        run: |
+          cd client
+          qmake client.pro FFMPEG_DIR=C:/ffmpeg
+          nmake
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "dist\CyrusDesk-$env:GITHUB_REF_NAME-windows-x64"
+          New-Item -ItemType Directory -Force "$out\server" | Out-Null
+          New-Item -ItemType Directory -Force "$out\client" | Out-Null
+
+          Copy-Item server\cyrusdesk-server.exe "$out\server\"
+          Copy-Item client\cyrusdesk-client.exe "$out\client\"
+
+          # Qt runtime DLLs + platform plugin
+          & windeployqt --release --no-translations "$out\server\cyrusdesk-server.exe" | Out-Null
+          & windeployqt --release --no-translations "$out\client\cyrusdesk-client.exe" | Out-Null
+
+          # FFmpeg runtime DLLs
+          Copy-Item C:\ffmpeg\bin\*.dll "$out\server\" -Force
+          Copy-Item C:\ffmpeg\bin\*.dll "$out\client\" -Force
+
+          Copy-Item README.md "$out\"
+          Compress-Archive -Path "$out" -DestinationPath "CyrusDesk-$env:GITHUB_REF_NAME-windows-x64.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: CyrusDesk-*-windows-x64.zip
+
+  release:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*
+          generate_release_notes: true
