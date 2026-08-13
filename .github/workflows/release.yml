@@ -82,14 +82,14 @@ jobs:
         shell: cmd
         run: |
           cd server
-          qmake -release server.pro FFMPEG_DIR=C:/ffmpeg
+          qmake server.pro FFMPEG_DIR=C:/ffmpeg
           nmake
 
       - name: Build client
         shell: cmd
         run: |
           cd client
-          qmake -release client.pro FFMPEG_DIR=C:/ffmpeg
+          qmake client.pro FFMPEG_DIR=C:/ffmpeg
           nmake
 
       - name: Package
@@ -99,8 +99,8 @@ jobs:
           New-Item -ItemType Directory -Force "$out\server" | Out-Null
           New-Item -ItemType Directory -Force "$out\client" | Out-Null
 
-          Copy-Item server\cyrusdesk-server.exe "$out\server\"
-          Copy-Item client\cyrusdesk-client.exe "$out\client\"
+          Copy-Item server\release\cyrusdesk-server.exe "$out\server\"
+          Copy-Item client\release\cyrusdesk-client.exe "$out\client\"
 
           # Qt runtime DLLs + platform plugin
           & windeployqt --release --no-translations "$out\server\cyrusdesk-server.exe" | Out-Null
