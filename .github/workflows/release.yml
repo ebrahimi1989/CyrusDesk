@@ -82,14 +82,14 @@ jobs:
         shell: cmd
         run: |
           cd server
-          qmake server.pro FFMPEG_DIR=C:/ffmpeg
+          qmake -release server.pro FFMPEG_DIR=C:/ffmpeg
           nmake
 
       - name: Build client
         shell: cmd
         run: |
           cd client
-          qmake client.pro FFMPEG_DIR=C:/ffmpeg
+          qmake -release client.pro FFMPEG_DIR=C:/ffmpeg
           nmake
 
       - name: Package
