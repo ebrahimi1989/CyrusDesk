@@ -19,11 +19,11 @@ HEADERS += \
 
 INCLUDEPATH += ../common
 
-# FFmpeg libraries (only what is actually used)
-CONFIG += link_pkgconfig
-PKGCONFIG += libavcodec libavutil libswscale
-
 unix:!macx {
+    # FFmpeg libraries (only what is actually used)
+    CONFIG += link_pkgconfig
+    PKGCONFIG += libavcodec libavutil libswscale
+
     LIBS += -lpthread
 }
 
