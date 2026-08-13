@@ -101,17 +101,22 @@ git push origin v1.0.0
 
 The `.github/workflows/release.yml` workflow then produces:
 
-- `CyrusDesk-<version>-linux-x64.tar.gz` — Linux server + client binaries
+- `CyrusDesk-<version>-linux-x64.tar.gz` — Linux server + client with the
+  Qt 5.14 runtime bundled (runs on any x86-64 Linux, e.g. Ubuntu 20.04+).
+  Launch them with the `cyrusdesk-server` / `cyrusdesk-client` scripts.
 - `CyrusDesk-<version>-windows-x64.zip` — Windows server + client with the
   Qt and FFmpeg runtime DLLs bundled (runs without any extra installation)
 
 Notes:
 
+- The Linux release is built on Ubuntu 20.04 for glibc compatibility, and
+  bundles the Qt libraries it needs. Only FFmpeg comes from the system
+  (`libavcodec58`, `libavutil56`, `libswscale5` — default on Ubuntu 20.04+).
 - Windows builds use the FFmpeg shared build from
   [gyan.dev](https://www.gyan.dev/ffmpeg/builds/). The FFmpeg path is
   overridable with `qmake FFMPEG_DIR=<path>`.
-- The Linux client binary still expects Qt to be installed on the target
-  machine (or run it from inside the Docker image).
+- Release builds pass `CONFIG+=portable` to qmake, which disables
+  `-march=native` so the binary runs on any x86-64 CPU.
 
 ## Protocol
 

@@ -2,9 +2,14 @@ QT += core widgets network gui
 
 CONFIG += c++17
 
-# Enable all optimizations
-QMAKE_CXXFLAGS += -O3 -march=native -mtune=native
-QMAKE_CXXFLAGS += -ffast-math -funroll-loops
+# Enable all optimizations.
+# Local builds are tuned for the build machine; pass CONFIG+=portable when
+# building a release so it runs on any x86-64 machine.
+CONFIG(portable) {
+    QMAKE_CXXFLAGS += -O3 -ffast-math -funroll-loops
+} else {
+    QMAKE_CXXFLAGS += -O3 -march=native -mtune=native -ffast-math -funroll-loops
+}
 QMAKE_CXXFLAGS += -flto # Link-time optimization
 QMAKE_LFLAGS += -flto
 
@@ -30,8 +35,8 @@ unix:!macx {
 
     LIBS += -lX11 -lXtst -lpthread
 
-    # Add SIMD support
-    QMAKE_CXXFLAGS += -mavx2 -msse4.2
+    # Add SIMD support (disabled for portable release builds)
+    !CONFIG(portable): QMAKE_CXXFLAGS += -mavx2 -msse4.2
 }
 
 win32 {

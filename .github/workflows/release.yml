@@ -13,7 +13,8 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-22.04
+    # Ubuntu 20.04 (glibc 2.31) so the binaries run on older distros too
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
 
@@ -31,22 +32,48 @@ jobs:
       - name: Build server
         run: |
           cd server
-          qmake server.pro
+          qmake server.pro CONFIG+=portable
           make -j$(nproc)
 
       - name: Build client
         run: |
           cd client
-          qmake client.pro
+          qmake client.pro CONFIG+=portable
           make -j$(nproc)
 
       - name: Package
         run: |
-          mkdir -p dist/CyrusDesk-${{ github.ref_name }}-linux-x64
-          cp server/cyrusdesk-server dist/CyrusDesk-${{ github.ref_name }}-linux-x64/
-          cp client/cyrusdesk-client dist/CyrusDesk-${{ github.ref_name }}-linux-x64/
-          cp README.md dist/CyrusDesk-${{ github.ref_name }}-linux-x64/
-          tar -czf CyrusDesk-${{ github.ref_name }}-linux-x64.tar.gz -C dist .
+          QT_LIBS=$(qmake -query QT_INSTALL_LIBS)
+          QT_PLUGINS=$(qmake -query QT_INSTALL_PLUGINS)
+          OUT="dist/CyrusDesk-${{ github.ref_name }}-linux-x64"
+          mkdir -p "$OUT/lib" "$OUT/plugins/platforms"
+
+          cp server/cyrusdesk-server "$OUT/cyrusdesk-server-bin"
+          cp client/cyrusdesk-client "$OUT/cyrusdesk-client-bin"
+          cp README.md "$OUT/"
+
+          # Bundle the Qt runtime (libs + ICU + XCB platform plugin) so the
+          # tarball runs without a system Qt installation
+          cp "$QT_LIBS"/libQt5Core.so.5 "$QT_LIBS"/libQt5Gui.so.5 \
+             "$QT_LIBS"/libQt5Widgets.so.5 "$QT_LIBS"/libQt5Network.so.5 \
+             "$QT_LIBS"/libQt5XcbQpa.so.5 "$QT_LIBS"/libQt5DBus.so.5 \
+             "$QT_LIBS"/libicui18n.so.56 "$QT_LIBS"/libicuuc.so.56 \
+             "$QT_LIBS"/libicudata.so.56 "$OUT/lib/"
+          cp "$QT_PLUGINS"/platforms/libqxcb.so "$OUT/plugins/platforms/"
+
+          # Launcher scripts so the binaries find the bundled Qt
+          for app in cyrusdesk-server cyrusdesk-client; do
+            cat > "$OUT/$app" <<EOF
+          #!/bin/sh
+          DIR=\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)
+          export LD_LIBRARY_PATH="\$DIR/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+          export QT_PLUGIN_PATH="\$DIR/plugins"
+          exec "\$DIR/$app-bin" "\$@"
+          EOF
+            chmod +x "$OUT/$app"
+          done
+
+          tar -czf "CyrusDesk-${{ github.ref_name }}-linux-x64.tar.gz" -C dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
