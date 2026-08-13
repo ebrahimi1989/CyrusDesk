@@ -29,11 +29,25 @@ typedef struct _XDisplay Display;
 class RemoteServer : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(bool serverRunning READ serverRunning NOTIFY serverRunningChanged)
+    Q_PROPERTY(QString status READ status NOTIFY statusChanged)
+    Q_PROPERTY(QString clientAddress READ clientAddress NOTIFY clientConnected)
 
 public:
     explicit RemoteServer(QObject *parent = nullptr);
     ~RemoteServer();
     bool start(quint16 port);
+    void stop();
+    bool serverRunning() const { return m_serverRunning; }
+    QString status() const { return m_status; }
+    QString clientAddress() const { return m_clientAddress; }
+
+signals:
+    void connectedChanged();
+    void statusChanged();
+    void serverRunningChanged();
+    void clientConnected(const QString& clientAddress);
+    void clientDisconnected();
 
 private slots:
     void onNewConnection();
@@ -58,6 +72,10 @@ private:
     QElapsedTimer m_frameTimer;
     qint64 m_lastCaptureTime;
     QPoint m_lastCursorPos;
+
+    bool m_serverRunning;
+    QString m_status;
+    QString m_clientAddress;
 
     // Hardware-accelerated encoder
     std::unique_ptr<HWEncoder> m_encoder;

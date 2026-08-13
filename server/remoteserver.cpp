@@ -99,6 +99,9 @@ RemoteServer::RemoteServer(QObject *parent)
     , m_frameCounter(0)
     , m_lastDebugTime(0)
     , m_debugCounter(0)
+    , m_serverRunning(false)
+    , m_status("Stopped")
+    , m_clientAddress("None")
 #ifdef Q_OS_LINUX
     , m_display(nullptr)
 #endif
@@ -139,7 +142,41 @@ RemoteServer::~RemoteServer()
 
 bool RemoteServer::start(quint16 port)
 {
-    return m_server->listen(QHostAddress::Any, port);
+    if (m_serverRunning) {
+        return true;
+    }
+
+    if (!m_server->listen(QHostAddress::Any, port)) {
+        m_status = "Failed to start";
+        emit statusChanged();
+        return false;
+    }
+
+    m_serverRunning = true;
+    m_status = QString("Listening on port %1").arg(port);
+    m_clientAddress = "None";
+    emit serverRunningChanged();
+    emit statusChanged();
+    return true;
+}
+
+void RemoteServer::stop()
+{
+    if (!m_serverRunning) {
+        return;
+    }
+
+    m_server->close();
+
+    if (m_client) {
+        m_client->disconnectFromHost();
+    }
+
+    m_serverRunning = false;
+    m_status = "Stopped";
+    m_clientAddress = "None";
+    emit serverRunningChanged();
+    emit statusChanged();
 }
 
 void RemoteServer::onNewConnection()
@@ -149,6 +186,13 @@ void RemoteServer::onNewConnection()
     }
 
     m_client = m_server->nextPendingConnection();
+    m_clientAddress = m_client->peerAddress().toString();
+
+    qDebug() << "Client connected from:" << m_clientAddress;
+
+    m_status = QString("Client connected: %1").arg(m_clientAddress);
+    emit statusChanged();
+    emit clientConnected(m_clientAddress);
 
     // CRITICAL: Optimize TCP for ultra-low latency
     m_client->setSocketOption(QAbstractSocket::LowDelayOption, 1); // TCP_NODELAY
@@ -182,7 +226,12 @@ void RemoteServer::onNewConnection()
 
             m_captureTimer->start();
             m_cursorTimer->start();
+
+            m_status = QString("Streaming to: %1").arg(m_clientAddress);
+            emit statusChanged();
         } else {
+            m_status = "Encoder init failed";
+            emit statusChanged();
             qCritical() << "Failed to initialize encoder";
         }
     }
@@ -191,6 +240,12 @@ void RemoteServer::onNewConnection()
 void RemoteServer::onClientDisconnected()
 {
     qDebug() << "Client disconnected, cleaning up...";
+
+    m_status = "Waiting for client...";
+    emit statusChanged();
+    emit clientDisconnected();
+
+    m_clientAddress = "None";
 
     m_captureTimer->stop();
     m_cursorTimer->stop();
