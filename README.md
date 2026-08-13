@@ -1,10 +1,54 @@
 # CyrusDesk
 
+[![CI](https://github.com/ebrahimi1989/CyrusDesk/actions/workflows/build.yml/badge.svg)](https://github.com/ebrahimi1989/CyrusDesk/actions/workflows/build.yml)
+[![License: GPL-3.0](https://img.shields.io/github/license/ebrahimi1989/CyrusDesk)](https://github.com/ebrahimi1989/CyrusDesk/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/ebrahimi1989/CyrusDesk?style=social)](https://github.com/ebrahimi1989/CyrusDesk/stargazers)
+[![GitHub release](https://img.shields.io/github/v/release/ebrahimi1989/CyrusDesk)](https://github.com/ebrahimi1989/CyrusDesk/releases)
+
 A low-latency remote desktop application built with Qt 5.14 (C++17) and FFmpeg.
 The server captures the desktop, encodes it as H.264 (hardware-accelerated where
 available, software fallback otherwise) and streams it over TCP. The client
 decodes and displays the video and relays mouse/keyboard input back to the
 server via X11 (XTest) on Linux or the Windows API.
+
+If you find CyrusDesk useful, please consider giving it a ⭐!
+
+## Screenshots
+
+<!-- Add screenshots or a GIF here to showcase the client UI -->
+<!-- Save them as docs/screenshot.png and docs/preview.gif -->
+
+![CyrusDesk client screenshot](docs/screenshot.png)
+
+## Features
+
+- **Low latency** — single-frame encoder/decoder queue, `TCP_NODELAY`, end-to-end latency measurement logged every second
+- **Hardware acceleration** — encoder auto-selects NVENC → VAAPI → QSP → software; decoder selects CUDA → VAAPI → QSV → D3D11VA → software
+- **Cross-platform** — server and client on Linux and Windows
+- **Docker-ready** — server runs in a container sharing the host X11 display
+- **Self-contained releases** — prebuilt binaries with Qt runtime bundled, no extra installation needed
+- **Open source** — GPL-3.0 licensed
+
+## Why CyrusDesk?
+
+| Feature              | CyrusDesk  | RealVNC     | X2Go         | AnyDesk      |
+| -------------------- | ---------- | ----------- | ------------ | ------------ |
+| Latency focus        | ✅ Yes     | ❌ No       | ❌ No        | ✅ Yes       |
+| Hardware encoder     | ✅ Yes     | ❌ No       | ❌ No        | ✅ Yes       |
+| Docker server        | ✅ Yes     | ❌ No       | ❌ No        | ❌ No        |
+| Self-hosted          | ✅ Yes     | ✅ Yes      | ✅ Yes       | ❌ No        |
+| Open source          | ✅ GPL-3.0 | ❌ No       | ✅ Yes       | ❌ No        |
+| Zero-config releases | ✅ Yes     | ❌ No       | ❌ No        | ✅ Yes       |
+
+### Quick start
+
+1. Download the latest release for your platform from the [Releases](https://github.com/ebrahimi1989/CyrusDesk/releases) page.
+2. Extract the archive.
+3. On the host you want to share, run `cyrusdesk-server` (or `./cyrusdesk-server 5555`).
+4. On the connecting machine, run `cyrusdesk-client`, enter the host IP and port, then click **Connect**.
+5. Press **F11** to toggle fullscreen.
+
+Or build from source — see [Building](#building) below.
 
 ## Structure
 
@@ -132,7 +176,16 @@ Message types: `ScreenData`, `MouseMove`, `MouseClick`, `KeyEvent`, `Ping`,
 - The encoder auto-selects NVENC → VAAPI → QSV → software, the decoder
   CUDA → VAAPI → QSV → D3D11VA → software.
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+Check out issues tagged with `good first issue` to get started.
+
 ## Security
 
 Designed for trusted networks. For production, add authentication, TLS, and
 access control.
+
+## License
+
+This project is licensed under the GPL-3.0 License — see the [LICENSE](LICENSE) file for details.
