@@ -11,6 +11,18 @@ Makefile.*
 build/
 build-*/
 
+# Coverage data files
+*.gcda
+*.gcno
+*.info
+*.gcov
+html/
+
 # Compiled binaries
 cyrusdesk-server
 cyrusdesk-client
+cyrusdesk-tests
+
+# Test build output
+tests/build/
+

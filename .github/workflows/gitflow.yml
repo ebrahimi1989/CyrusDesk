@@ -1,0 +1,134 @@
+name: GitFlow CI
+
+on:
+  push:
+    branches:
+      - 'develop'
+      - 'main'
+      - 'master'
+      - 'feature/*'
+      - 'hotfix/*'
+      - 'release/*'
+  pull_request:
+    branches:
+      - 'develop'
+      - 'main'
+      - 'master'
+
+jobs:
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 5.14.2
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.14.2'
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libavcodec-dev \
+            libavutil-dev \
+            libswscale-dev \
+            pkg-config \
+            lcov
+
+      - name: Configure test project with coverage flags
+        run: |
+          cd tests
+          qmake tests.pro \
+            "QMAKE_CXXFLAGS+= -fprofile-arcs -ftest-coverage -O0 -g" \
+            "QMAKE_LFLAGS+=-fprofile-arcs -ftest-coverage"
+
+      - name: Build tests
+        run: |
+          cd tests
+          make -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd tests
+          ./cyrusdesk-tests
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          cd tests
+          lcov --capture --directory . --output-file coverage.info \
+            --rc geninfo_unexecuted_blocks=1 \
+            --rc geninfo_adjust_src_path="/home/runner/work/CyrusDesk/CyrusDesk/:"
+          lcov --list coverage.info
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: tests/coverage.info
+
+      - name: Upload coverage to Codecov
+        if: github.repository == 'ebrahimi1989/CyrusDesk'
+        uses: codecov/codecov-action@v4
+        with:
+          files: tests/coverage.info
+          flags: unittests
+          env_vars: OS
+
+  build:
+    name: Build Server & Client
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 5.14.2
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.14.2'
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavutil-dev libswscale-dev libx11-dev libxtst-dev pkg-config
+
+      - name: Build server
+        run: |
+          cd server
+          qmake server.pro
+          make -j$(nproc)
+
+      - name: Build client
+        run: |
+          cd client
+          qmake client.pro
+          make -j$(nproc)
+
+  branch-protect:
+    name: Branch Protection
+    needs: [test, build]
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GitFlow branch rules
+        run: |
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Checking GitFlow conventions..."
+          case "${GITHUB_REF#refs/heads/}" in
+            develop|main|master)
+              echo "Mainline branch: allowed"
+              ;;
+            feature/*|hotfix/*|release/*)
+              echo "GitFlow branch: allowed"
+              ;;
+            *)
+              echo "Non-standard branch: ${{ github.ref_name }}"
+              ;;
+          esac
+          echo "All checks passed."
