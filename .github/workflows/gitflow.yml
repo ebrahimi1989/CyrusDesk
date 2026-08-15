@@ -36,32 +36,36 @@ jobs:
             libavutil-dev \
             libswscale-dev \
             pkg-config \
-            lcov
+            lcov \
+            xvfb
+
+      - name: Create test build directory
+        run: mkdir -p tests/build
 
       - name: Configure test project with coverage flags
         run: |
-          cd tests
-          qmake tests.pro \
+          cd tests/build
+          qmake ../tests.pro \
             "QMAKE_CXXFLAGS+= -fprofile-arcs -ftest-coverage -O0 -g" \
             "QMAKE_LFLAGS+=-fprofile-arcs -ftest-coverage"
 
       - name: Build tests
         run: |
-          cd tests
+          cd tests/build
           make -j$(nproc)
 
       - name: Run tests
         run: |
-          cd tests
-          ./cyrusdesk-tests
+          cd tests/build
+          xvfb-run -a ./cyrusdesk-tests
 
       - name: Generate coverage report
         if: always()
         run: |
-          cd tests
+          cd tests/build
           lcov --capture --directory . --output-file coverage.info \
-            --rc geninfo_unexecuted_blocks=1 \
-            --rc geninfo_adjust_src_path="/home/runner/work/CyrusDesk/CyrusDesk/:"
+            --rc geninfo_unexecuted_blocks=1
+          genhtml coverage.info --output-directory coverage-html
           lcov --list coverage.info
 
       - name: Upload coverage report
@@ -69,13 +73,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: tests/coverage.info
+          path: |
+            tests/build/coverage.info
+            tests/build/coverage-html/
 
       - name: Upload coverage to Codecov
         if: github.repository == 'ebrahimi1989/CyrusDesk'
         uses: codecov/codecov-action@v4
         with:
-          files: tests/coverage.info
+          files: tests/build/coverage.info
           flags: unittests
           env_vars: OS
 
