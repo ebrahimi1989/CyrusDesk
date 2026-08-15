@@ -116,11 +116,20 @@ void RemoteScreenLabel::keyReleaseEvent(QKeyEvent *event)
 
 QPoint RemoteScreenLabel::getScaledPosition(const QPoint& pos) 
 {
+    // Qt5 returns const QPixmap*, Qt6 returns QPixmap by value
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (pixmap().isNull()) {
+#else
     if (!pixmap() || pixmap()->isNull()) {
+#endif
         return QPoint(-1, -1);
     }
-    
-    QSize remoteScreenSize = pixmap()->size(); // Server's actual screen resolution
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QSize remoteScreenSize = pixmap().size();
+#else
+    QSize remoteScreenSize = pixmap()->size();
+#endif
     QSize clientWidgetSize = size(); // Client widget size
     
     if (remoteScreenSize.isEmpty() || clientWidgetSize.isEmpty()) {
@@ -167,11 +176,20 @@ void RemoteScreenLabel::updateRemoteCursor(int x, int y, bool visible)
 
 QPoint RemoteScreenLabel::getDisplayPosition(const QPoint& remotePos) 
 {
+    // Qt5 returns const QPixmap*, Qt6 returns QPixmap by value
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (pixmap().isNull() || remotePos.x() < 0) {
+#else
     if (!pixmap() || pixmap()->isNull() || remotePos.x() < 0) {
+#endif
         return QPoint(-1, -1);
     }
-    
-    QSize remoteScreenSize = pixmap()->size(); // Server's actual screen resolution
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QSize remoteScreenSize = pixmap().size();
+#else
+    QSize remoteScreenSize = pixmap()->size();
+#endif
     QSize clientWidgetSize = size(); // Client widget size
     
     if (remoteScreenSize.isEmpty() || clientWidgetSize.isEmpty()) {

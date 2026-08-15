@@ -44,6 +44,9 @@ public:
     // Initialize decoder
     bool initialize(HWAccelType type = Auto);
 
+    // Set codec extradata (SPS/PPS) before initialization
+    void setExtradata(const QByteArray& data);
+
     // Decode packet (non-blocking)
     bool decodePacket(const QByteArray& packet);
 
@@ -102,6 +105,7 @@ private:
     int64_t m_lastFrameCount; // Instance-specific (previously static)
 
     bool m_initialized;
+    QByteArray m_extradata; // SPS/PPS from server
 
     // Private methods
     bool initializeCodec(HWAccelType type);

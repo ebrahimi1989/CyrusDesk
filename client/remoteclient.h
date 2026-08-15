@@ -69,6 +69,7 @@ private:
     void handleScreenData(const QByteArray& data);
     void handleVideoData(const QByteArray& data);
     void handleCodecInfo(const QByteArray& data);
+    void onCodecInfoTimeout();
     void handleCursorUpdate(const QByteArray& data);
     void setStatus(const QString& status);
     void setConnected(bool connected);
@@ -83,6 +84,8 @@ private:
     // Hardware-accelerated decoder
     std::unique_ptr<HWDecoder> m_decoder;
     bool m_decoderInitialized;
+    QByteArray m_codecInfo; // SPS/PPS from server
+    QTimer* m_codecInfoTimer;
 
     // Mouse event batching for performance
     struct PendingMouseEvent {

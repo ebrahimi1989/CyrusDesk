@@ -48,6 +48,7 @@ RemoteClient::RemoteClient(QObject *parent)
     , m_status("Disconnected")
     , m_decoder(std::make_unique<HWDecoder>())
     , m_decoderInitialized(false)
+    , m_codecInfoTimer(new QTimer(this))
     , m_mouseBatchTimer(new QTimer(this))
     , m_hasPendingMouseMove(false)
     , m_frameCounter(0)
@@ -73,6 +74,10 @@ RemoteClient::RemoteClient(QObject *parent)
     m_pingTimer->setInterval(5000);
 
     connect(m_decoder.get(), &HWDecoder::frameReady, this, &RemoteClient::onDecodedFrameReady);
+
+    // Codec info timeout - fallback if server doesn't send SPS/PPS
+    m_codecInfoTimer->setSingleShot(true);
+    connect(m_codecInfoTimer, &QTimer::timeout, this, &RemoteClient::onCodecInfoTimeout);
 
     // Mouse event batching - flush every 5ms to batch rapid mouse movements
     connect(m_mouseBatchTimer, &QTimer::timeout, this, &RemoteClient::flushPendingMouseEvents);
@@ -168,17 +173,14 @@ void RemoteClient::onConnected()
     m_socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, 128 * 1024);
     m_socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, 256 * 1024);
 
-    // Initialize hardware decoder
-    if (m_decoder->initialize(HWDecoder::Auto)) {
-        qDebug() << "Hardware decoder initialized";
-        m_decoderInitialized = true;
-    } else {
-        qWarning() << "Failed to initialize hardware decoder";
-    }
-
+    // Defer decoder initialization until CodecInfo (SPS/PPS) is received
+    // Hardware decoders may need extradata before opening the codec
     setConnected(true);
-    setStatus("Connected");
+    setStatus("Waiting for codec info...");
     m_pingTimer->start();
+
+    // Fallback: initialize without extradata if CodecInfo doesn't arrive within 2s
+    m_codecInfoTimer->start(2000);
 
     // Reset packet rate tracking for new connection
     m_packetCounter = 0;
@@ -196,6 +198,7 @@ void RemoteClient::onDisconnected()
     setConnected(false);
     setStatus("Disconnected");
     m_pingTimer->stop();
+    m_codecInfoTimer->stop();
 
     // Reset packet rate tracking
     m_packetCounter = 0;
@@ -203,18 +206,17 @@ void RemoteClient::onDisconnected()
     m_avgLatency = 0.0;
     emit packetRateChanged();
 
-    // Reset decoder state
-    if (m_decoderInitialized) {
-        m_decoderInitialized = false;
+    // Reset decoder state (always recreate for next connection)
+    m_decoderInitialized = false;
+    m_codecInfo.clear();
 
-        // Clear buffer
-        m_buffer.clear();
+    // Clear buffer
+    m_buffer.clear();
 
-        // Recreate decoder for next connection
-        m_decoder.reset();
-        m_decoder = std::make_unique<HWDecoder>();
-        connect(m_decoder.get(), &HWDecoder::frameReady, this, &RemoteClient::onDecodedFrameReady);
-    }
+    // Recreate decoder for next connection
+    m_decoder.reset();
+    m_decoder = std::make_unique<HWDecoder>();
+    connect(m_decoder.get(), &HWDecoder::frameReady, this, &RemoteClient::onDecodedFrameReady);
 
     qDebug() << "Client cleanup complete, ready to reconnect";
 }
@@ -301,6 +303,23 @@ void RemoteClient::sendPing()
     m_socket->write(msg.serialize());
 }
 
+void RemoteClient::onCodecInfoTimeout()
+{
+    // Fallback: server didn't send CodecInfo within 2 seconds
+    // Initialize decoder without extradata (relies on in-band SPS/PPS in stream)
+    if (!m_decoderInitialized) {
+        qWarning() << "CodecInfo timeout - initializing decoder without SPS/PPS (relying on in-band)";
+        if (m_decoder->initialize(HWDecoder::Auto)) {
+            qDebug() << "Hardware decoder initialized (fallback, no extradata)";
+            m_decoderInitialized = true;
+            setStatus("Connected (limited)");
+        } else {
+            qCritical() << "Failed to initialize hardware decoder (fallback)";
+            setStatus("Decoder init failed");
+        }
+    }
+}
+
 void RemoteClient::handleScreenData(const QByteArray& data)
 {
     // Legacy JPEG decompression (fallback)
@@ -350,9 +369,25 @@ void RemoteClient::handleVideoData(const QByteArray& data)
 
 void RemoteClient::handleCodecInfo(const QByteArray& data)
 {
+    m_codecInfo = data;
     qDebug() << "Received codec info:" << data.size() << "bytes";
-    // Codec info (SPS/PPS) can be used for decoder initialization if needed
-    // Currently the decoder initializes itself automatically
+
+    // Cancel the fallback timer since we received CodecInfo
+    m_codecInfoTimer->stop();
+
+    // Apply extradata to decoder and initialize (only once)
+    if (!m_decoderInitialized) {
+        m_decoder->setExtradata(data);
+
+        if (m_decoder->initialize(HWDecoder::Auto)) {
+            qDebug() << "Hardware decoder initialized with codec info (SPS/PPS applied)";
+            m_decoderInitialized = true;
+            setStatus("Connected");
+        } else {
+            qWarning() << "Failed to initialize hardware decoder with codec info";
+            setStatus("Decoder init failed");
+        }
+    }
 }
 
 void RemoteClient::onDecodedFrameReady()

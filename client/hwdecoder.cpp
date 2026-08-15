@@ -123,6 +123,11 @@ bool HWDecoder::initialize(HWAccelType type)
     return true;
 }
 
+void HWDecoder::setExtradata(const QByteArray& data)
+{
+    m_extradata = data;
+}
+
 AVHWDeviceType HWDecoder::getHWDeviceType(HWAccelType type)
 {
     switch (type) {
@@ -199,6 +204,19 @@ bool HWDecoder::initializeCodec(HWAccelType type)
             avcodec_free_context(&m_codecContext);
             return false;
         }
+    }
+
+    // Apply codec extradata (SPS/PPS) from server before opening codec
+    if (!m_extradata.isEmpty()) {
+        m_codecContext->extradata = (uint8_t*)av_malloc(m_extradata.size() + AV_INPUT_BUFFER_PADDING_SIZE);
+        if (m_codecContext->extradata) {
+            memcpy(m_codecContext->extradata, m_extradata.constData(), static_cast<size_t>(m_extradata.size()));
+            memset(m_codecContext->extradata + m_extradata.size(), 0, AV_INPUT_BUFFER_PADDING_SIZE);
+            m_codecContext->extradata_size = m_extradata.size();
+            qDebug() << "Applied codec extradata (SPS/PPS):" << m_extradata.size() << "bytes";
+        }
+    } else {
+        qDebug() << "No codec extradata available; relying on in-band SPS/PPS";
     }
 
     // Open codec
