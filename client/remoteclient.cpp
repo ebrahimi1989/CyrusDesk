@@ -6,6 +6,15 @@
 #include <QDataStream>
 #include <QMutexLocker>
 
+namespace {
+// Upper bound on a single message's declared payload size. Real messages
+// (H.264 frames, cursor images, codec headers) are far smaller than this;
+// a larger value indicates a corrupted or malicious stream. Without this
+// cap, onDataReceived() would keep growing m_buffer waiting for a message
+// that never completes, exhausting client memory (issue #20).
+constexpr quint32 MAX_MESSAGE_SIZE = 64u * 1024u * 1024u; // 64 MiB
+}
+
 ImageProvider::ImageProvider(QObject *parent)
     : QObject(parent)
 {
@@ -245,6 +254,19 @@ void RemoteClient::onDataReceived()
         quint8 typeValue;
         quint32 size;
         headerStream >> typeValue >> size;
+
+        // Reject an absurd payload size before allocating or waiting for it.
+        // A malicious or MITM'd server could otherwise declare a huge size and
+        // stream filler bytes, forcing m_buffer to grow without bound until the
+        // client is OOM-killed (issue #20).
+        if (size > MAX_MESSAGE_SIZE) {
+            qWarning() << "RemoteClient: message size" << size
+                       << "exceeds maximum" << MAX_MESSAGE_SIZE
+                       << "- dropping connection";
+            m_buffer.clear();
+            m_socket->abort();
+            return;
+        }
 
         qint64 totalMessageSize = sizeof(quint8) + sizeof(quint32) + size;
 
